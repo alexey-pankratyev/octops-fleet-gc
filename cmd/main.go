@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	"github.com/Octops/agones-event-broadcaster/pkg/broadcaster"
 	"github.com/Octops/octops-fleet-gc/internal/version"
@@ -53,6 +54,17 @@ func main() {
 	}
 
 	bc := broadcaster.New(cfg, fleetGC, opts)
+
+    if err := bc.Manager.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		level.Error(logger).Log("unable to set up health check", err)
+        os.Exit(1)
+    }
+
+    if err := bc.Manager.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		level.Error(logger).Log("unable to set up ready check", err)
+        os.Exit(1)
+    }
+	
 	bc.WithWatcherFor(&v1.Fleet{})
 	bc.WithWatcherFor(&autoscaling.FleetAutoscaler{})
 

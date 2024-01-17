@@ -34,9 +34,9 @@ TESTS    := $(shell find internal cmd -name '*.go' -type f -not -name '*.pb.go' 
 
 OCTOPS_BIN := bin/octops-fleet-gc
 
-IMAGE_REPO=octops/octops-fleet-gc
-DOCKER_IMAGE_TAG ?= octops/octops-fleet-gc:${VERSION}
-RELEASE_TAG=0.0.1
+IMAGE_REPO ?= octops/octops-fleet-gc
+DOCKER_IMAGE_TAG ?= ${VERSION}
+RELEASE_TAG=0.0.3
 
 default: clean build ## By default will cleanup dir $OCTOPS_BIN and will start project building with GOLANG.	
 
@@ -88,22 +88,22 @@ vendor:
 	$(GO) mod vendor
 
 docker:
-	docker build -t $(DOCKER_IMAGE_TAG) .
+	docker build -t $(IMAGE_REPO):$(DOCKER_IMAGE_TAG) .
 
 buildx:
 	docker buildx build --platform linux/arm64/v8,linux/amd64 --push --tag $(IMAGE_REPO):$(RELEASE_TAG) .
 
 push: docker ## Docker build and push
-	docker push $(DOCKER_IMAGE_TAG)
+	docker push $(IMAGE_REPO):$(DOCKER_IMAGE_TAG)
 
 install:
 	kubectl -n octops-system apply -f ./deploy/install.yaml
 
 # This action creates and deploys a controller using Helm.
 ## vars for building a helm package
-HELM_CHART_NAME=octops-fleet-gs
+HELM_CHART_NAME=octops-fleet-gs-helm
 HELM_CHART_DIR=./deploy/helm
-AWS_OCI=oci://$(AWS-ECR-PUBLIC-REPO)
+AWS_OCI_HELM_REPO=oci://$(AWS-ECR-PUBLIC-REPO)
 VERSION_PACKAGE=$(shell sed -n -e 's/^version:\s* //p' $(HELM_CHART_DIR)/Chart.yaml)
 ##functions for building a helm package
 define f_helm_template
@@ -148,10 +148,13 @@ define f_upload_to_aws_ecr
 	@echo "" && echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "[ ] Login to ECR..."
 	@aws sts get-caller-identity | jq
-	@aws ecr-public get-login-password --region us-east-1 | helm registry login --username AWS --password-stdin public.ecr.aws
+	@aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(AWS-ECR-PUBLIC-REPO)
+	@docker build -t $(AWS-ECR-PUBLIC-REPO)/octops-fleet-gs-docker:$(RELEASE_TAG) .
+	@docker push $(AWS-ECR-PUBLIC-REPO)/octops-fleet-gs-docker:$(RELEASE_TAG)
 	@echo "[ ] Uploading to ECR..."
-	@echo  $(AWS_OCI)
-	@helm push $(HELM_CHART_NAME)-$(VERSION_PACKAGE).tgz $(AWS_OCI) && echo " -> Successfully uploaded!";
+	@echo  $(AWS_OCI_HELM_REPO)
+	@aws ecr-public get-login-password --region us-east-1 | helm registry login --username AWS --password-stdin public.ecr.aws
+	@helm push $(HELM_CHART_NAME)-$(VERSION_PACKAGE).tgz $(AWS_OCI_HELM_REPO) && echo " -> Successfully uploaded!";
 endef
 
 helm-package: ## Verify configuration with all possible checks and PACKAGE
@@ -160,9 +163,9 @@ helm-package: ## Verify configuration with all possible checks and PACKAGE
 	$(call f_helm_lint)
 	$(call f_helm_package)
 
-helm-upload-to-aws-ecr: helm-package ## Verify, package, upload to your aws ecr public repo\
+helm-pkg-upload-to-aws-ecr: helm-package ## Verify, package, upload to your aws ecr public repo\
 it needs to set parameter "AWS-ECR-PUBLIC-REPO"\
-Example: make helm-upload-to-aws-ecr AWS-ECR-PUBLIC-REPO=public.ecr.aws/*****
+Example: make helm-pkg-upload-to-aws-ecr AWS-ECR-PUBLIC-REPO=public.ecr.aws/*****
 	$(call f_upload_to_aws_ecr)
 
 helm-install: ## Verify configuration with all possible checks and INSTALL or UPDATE
