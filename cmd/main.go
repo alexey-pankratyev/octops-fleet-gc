@@ -26,6 +26,7 @@ var (
 	maxConcurrent = kingpin.Flag("max-concurrent", "Maximum number of concurrent Reconciles which can be run.").Default("5").Int()
 )
 
+
 func main() {
 	kingpin.Parse()
 	logger := log.NewJSONLogger(os.Stdout)
@@ -51,6 +52,7 @@ func main() {
 		ServerPort:             8090,
 		MetricsBindAddress:     "0.0.0.0:8095",
 		MaxConcurrentReconcile: *maxConcurrent,
+		HealthProbeBindAddress: "0.0.0.0:8099",
 	}
 
 	bc := broadcaster.New(cfg, fleetGC, opts)
