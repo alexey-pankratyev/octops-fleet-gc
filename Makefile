@@ -36,7 +36,7 @@ OCTOPS_BIN := bin/octops-fleet-gc
 
 IMAGE_REPO ?= octops/octops-fleet-gc
 DOCKER_IMAGE_TAG ?= ${VERSION}
-RELEASE_TAG=0.0.3
+RELEASE_TAG=0.0.8
 
 default: clean build ## By default will cleanup dir $OCTOPS_BIN and will start project building with GOLANG.	
 

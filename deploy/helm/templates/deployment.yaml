@@ -17,6 +17,7 @@ spec:
       {{- end }}
       labels:
         {{- include "octops-fleet-gs.selectorLabels" . | nindent 8 }}
+        monitored-by: grafana-agent
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -37,14 +38,22 @@ spec:
           args:
             - --sync-period={{ .Values.syncPeriod }}
             - --max-concurrent={{ .Values.maxConcurrent }}
+          # livenessProbe:
+          #   httpGet:
+          #     path: /healthz
+          #     port: healthz
+          # readinessProbe:
+          #   httpGet:
+          #     path: /readyz
+          #     port: readyz
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: healthz
+              path: /metrics
+              port: metrics
           readinessProbe:
             httpGet:
-              path: /readyz
-              port: readyz
+              path: /metrics
+              port: metrics
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

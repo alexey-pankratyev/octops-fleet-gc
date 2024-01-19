@@ -18,13 +18,31 @@ import (
 	agonesv1 "agones.dev/agones/pkg/client/informers/externalversions/agones/v1"
 	autoscalingv1 "agones.dev/agones/pkg/client/informers/externalversions/autoscaling/v1"
 	"github.com/Octops/agones-event-broadcaster/pkg/events"
+	"github.com/prometheus/client_golang/prometheus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	"github.com/Octops/octops-fleet-gc/pkg/k8sutils"
 )
+
+// Defining metric for Event Broadcaster
+var (
+	metricEvent = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "octopos_fleet_gc_event",
+			Help: "This metric is used to track the event from octops-fleet-gc",
+		},
+		[]string{"FleetName", "Event"}, // labels
+	)
+)
+
+// set countdownTime metric
+func SendMetricEvent(fleetName, event string) {
+	metricEvent.WithLabelValues(fleetName, event)
+}
 
 type FleetCollector struct {
 	logger                  log.Logger
@@ -55,6 +73,9 @@ func NewFleetCollector(ctx context.Context, logger log.Logger, config *rest.Conf
 	if err := collector.HasSynced(ctx); err != nil {
 		return nil, errors.Wrap(err, "Agones failed to sync cache")
 	}
+	
+	// Register metrics for prometheus
+	metrics.Registry.MustRegister(metricEvent)
 
 	return collector, nil
 }
@@ -82,14 +103,16 @@ func (f *FleetCollector) SendMessage(envelope *events.Envelope) error {
 		return f.assignOwnerRef(scaler)
 	case "fleet.events.added":
 		fleet := message.(*v1.Fleet)
+		SendMetricEvent(fleet.Name, "added")
 		return f.reconcile(fleet)
 	case "fleet.events.updated":
 		msg := reflect.ValueOf(message)
 		fleet := msg.Field(1).Interface().(*v1.Fleet)
+		SendMetricEvent(fleet.Name, "updated")
 		return f.reconcile(fleet)
 	case "fleet.events.deleted":
 		fleet := message.(*v1.Fleet)
-
+		SendMetricEvent(fleet.Name, "deleted")
 		level.Debug(f.logger).Log(
 			"msg",
 			"fleet deleted",
@@ -100,7 +123,7 @@ func (f *FleetCollector) SendMessage(envelope *events.Envelope) error {
 			"action",
 			"nop")
 	}
-
+	
 	return nil
 }
 

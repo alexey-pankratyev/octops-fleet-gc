@@ -52,7 +52,7 @@ func main() {
 		ServerPort:             8090,
 		MetricsBindAddress:     "0.0.0.0:8095",
 		MaxConcurrentReconcile: *maxConcurrent,
-		HealthProbeBindAddress: "0.0.0.0:8099",
+		// HealthProbeBindAddress: "0.0.0.0:8099",
 	}
 
 	bc := broadcaster.New(cfg, fleetGC, opts)
